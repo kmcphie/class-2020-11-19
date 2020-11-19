@@ -36,6 +36,27 @@ week_11_folds <- vfold_cv(week_11_train, v = 5)
 
 * Come up with at least two models that a) you like and would be willing to defend and b) are somewhat different from one another. The two most common model types in these situations are "simple" and "full". The former includes a minimum number of variables. The latter errs on the side of variable inclusion and the creation of interaction terms.
 
+```{r}
+fit_1 <- stan_glm(formula = primary_06 ~ treatment + primary_04 + age,
+                  data = week_11_train,
+                  refresh = 0)
+```
+
+```{r}
+print(fit_1, digits = 3)
+```
+```{r}
+fit_2 <- stan_glm(formula = primary_06 ~ treatment + primary_04 + age + 
+                    general_02 + solo + sex + primary_02 + 
+                    primary_04:primary_02,
+                  data = week_11_train,
+                  refresh = 0)
+```
+
+```{r}
+print(fit_2, digits = 3)
+```
+
 * Which data set should we use for this? Why?
 
 * What does it mean if, for example, the coefficient of `treatmentNeighbors` varies across models?
@@ -47,10 +68,56 @@ week_11_folds <- vfold_cv(week_11_train, v = 5)
 
 **Prompt:** Compare your two models using cross-validation.
 
+```{r}
+mod_1_wfl <- workflow() %>%
+  add_model(linear_reg() %>%
+              set_engine("stan")  %>%
+              set_mode("regression")) %>%
+  add_recipe(recipe(formula = primary_06 ~ treatment + primary_04 + age,
+                    data = week_11_train) %>%
+               step_dummy(all_nominal()))
+```
+
+```{r}
+mod_1_wfl %>%
+  fit_resamples(resamples = week_11_folds) %>%
+  collect_metrics()
+```
+
+```{r}
+mod_2_wfl <- workflow() %>%
+  add_model(linear_reg() %>%
+              set_engine("stan")  %>%
+              set_mode("regression")) %>%
+  add_recipe(recipe(formula = primary_06 ~ treatment + primary_04 + age + 
+                    general_02 + solo + sex + primary_02,
+                    data = week_11_train) %>%
+               step_dummy(all_nominal()) %>%
+               step_interact(~ starts_with("primary_02"):starts_with("primary_04")))
+```
+
+```{r}
+mod_2_wfl %>%
+  fit_resamples(resamples = week_11_folds) %>%
+  collect_metrics()
+```
+
+
+
+
 
 ## Scene 3
 
 **Prompt:** Fit the model and then estimate what RMSE will be in the future.
+
+```{r}
+mod_2_wfl %>%
+  fit(data = week_11_train) %>% 
+  predict(new_data = week_11_test) %>% 
+  bind_cols(week_11_test %>% select(primary_06)) %>% 
+  metrics(truth = primary_06, estimate = .pred)
+```
+
 
 * If you have time, redo all the important steps above with the full data set.
 
